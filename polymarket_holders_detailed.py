@@ -39,10 +39,9 @@ def fetch_market_data(slug: str) -> Dict:
 
 
 def fetch_holders(condition_id: str, limit: int = 50) -> List[Dict]:
-    """Fetch top holders for a given condition ID"""
-    url = f"https://data-api.polymarket.com/holders?market={condition_id}&limit={limit}"
-    
-    print(f"Fetching top {limit} holders...")
+    """Fetch top holders for a given condition ID, sorted by shares held"""
+    # Add sort parameter to get holders with most shares first
+    url = f"https://data-api.polymarket.com/holders?market={condition_id}&limit={limit}&sort=shares&order=desc"
     
     response = requests.get(url)
     response.raise_for_status()
@@ -50,9 +49,12 @@ def fetch_holders(condition_id: str, limit: int = 50) -> List[Dict]:
     return response.json()
 
 
-def fetch_user_positions(wallet_address: str, condition_id: str) -> List[Dict]:
+def fetch_user_positions(wallet_address: str, condition_id: str = None) -> List[Dict]:
     """Fetch user's positions, optionally filtered by condition ID"""
-    url = f"https://data-api.polymarket.com/positions?user={wallet_address}&market={condition_id}"
+    if condition_id:
+        url = f"https://data-api.polymarket.com/positions?user={wallet_address}&market={condition_id}"
+    else:
+        url = f"https://data-api.polymarket.com/positions?user={wallet_address}"
     
     try:
         response = requests.get(url, timeout=5)
@@ -60,6 +62,199 @@ def fetch_user_positions(wallet_address: str, condition_id: str) -> List[Dict]:
         return response.json()
     except Exception as e:
         return []
+
+
+def fetch_all_user_positions(wallet_address: str) -> List[Dict]:
+    """Fetch all user's positions across all markets"""
+    url = f"https://data-api.polymarket.com/positions?user={wallet_address}"
+    
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return []
+
+
+def fetch_user_profile(wallet_address: str) -> Dict:
+    """Fetch user profile with total statistics"""
+    # Try multiple possible endpoints
+    endpoints = [
+        f"https://data-api.polymarket.com/users/{wallet_address}",
+        f"https://data-api.polymarket.com/user/{wallet_address}",
+        f"https://gamma-api.polymarket.com/users/{wallet_address}",
+        f"https://strapi-matic.poly.market/users/{wallet_address}",
+    ]
+    
+    for url in endpoints:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    print(f"[DEBUG] Found profile data at: {url}")
+                    return data
+        except Exception as e:
+            continue
+    
+    return {}
+
+
+def fetch_user_stats(wallet_address: str) -> Dict:
+    """Fetch individual user's all-time P&L"""
+    # Try individual user profit endpoints
+    endpoints = [
+        f"https://lb-api.polymarket.com/profit/{wallet_address}",
+        f"https://lb-api.polymarket.com/users/{wallet_address}/profit",
+        f"https://data-api.polymarket.com/profit?user={wallet_address}",
+        f"https://data-api.polymarket.com/users/{wallet_address}/profit",
+    ]
+    
+    for url in endpoints:
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    return data
+        except Exception as e:
+            continue
+    
+    # Fallback: try the leaderboard endpoint
+    try:
+        url = f"https://lb-api.polymarket.com/profit?user={wallet_address}"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data and isinstance(data, list):
+                # Check if user is in the leaderboard
+                for user_stat in data:
+                    if user_stat.get('proxyWallet', '').lower() == wallet_address.lower():
+                        return user_stat
+    except:
+        pass
+    
+    return {}
+
+
+def scrape_user_profit_from_profile(wallet_address: str) -> float:
+    """
+    Scrape all-time P&L from user's Polymarket profile page.
+    FIXED: Now correctly detects and preserves negative signs!
+    """
+    profile_url = f"https://polymarket.com/profile/{wallet_address}"
+    
+    try:
+        response = requests.get(profile_url, timeout=10)
+        if response.status_code != 200:
+            return None
+        
+        html = response.text
+        
+        # Strategy 1: Look for "Profit/Loss" label specifically - MOST RELIABLE
+        # Unicode minus: \u2212, Regular minus: -
+        # Look for the value that comes AFTER any intermediate text (like "1D1W1MALL")
+        patterns = [
+            # Match Profit/Loss, skip any non-digit/non-$ chars, then capture sign and large amount
+            r'Profit/Loss[^$]*?([\u2212\-])?\s*\$\s*([\d,]+\.[\d]{2})',
+            r'data-pnl\s*=\s*["\']+([\u2212\-]?[\d,]+\.?\d*)["\']',
+            r'data-profit[-_]?loss\s*=\s*["\']+([\u2212\-]?[\d,]+\.?\d*)["\']',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, html)
+            if match:
+                groups = match.groups()
+                
+                if len(groups) == 2:
+                    sign, number = groups
+                    value = float(number.replace(',', ''))
+                    # Check for unicode minus (\u2212) or regular minus
+                    if sign and sign in ['\u2212', '-']:
+                        print(f"[DEBUG] Found P&L with sign: {sign}${number} = -${value:,.2f}")
+                        return -value
+                    else:
+                        print(f"[DEBUG] Found P&L (positive): ${number} = +${value:,.2f}")
+                        return value
+                elif len(groups) == 1:
+                    value_str = groups[0]
+                    if value_str.startswith('\u2212') or value_str.startswith('-'):
+                        value = float(value_str.lstrip('\u2212-').replace(',', ''))
+                        print(f"[DEBUG] Found P&L with prefix: -${value:,.2f}")
+                        return -value
+                    else:
+                        value = float(value_str.replace(',', ''))
+                        print(f"[DEBUG] Found P&L (positive): +${value:,.2f}")
+                        return value
+        
+        # Strategy 2: Context-based detection - look SPECIFICALLY near "Profit/Loss" text
+        sections = html.split('Profit/Loss')
+        if len(sections) > 1:
+            pnl_section = sections[1][:600]
+            is_negative = False
+            
+            negative_classes = ['text-red', 'text-danger', 'negative', 'loss', 'text-destructive', 'minus', 'color-red', 'red']
+            if any(cls in pnl_section.lower() for cls in negative_classes):
+                is_negative = True
+                print(f"[DEBUG] Found negative indicator in CSS")
+            
+            first_100 = pnl_section[:100]
+            # Check for unicode minus (\u2212) or regular minus
+            if '\u2212' in first_100 or re.search(r'-\s*\$', first_100):
+                is_negative = True
+                print(f"[DEBUG] Found minus sign")
+            
+            # Look for properly formatted dollar amounts with 2 decimal places
+            amount_match = re.search(r'\$\s*([\d,]+\.[\d]{2})', pnl_section)
+            if amount_match:
+                value = float(amount_match.group(1).replace(',', ''))
+                # Accept ANY value found near "Profit/Loss" label
+                final_value = -value if is_negative else value
+                print(f"[DEBUG] Context: ${value:,.2f} -> {'+' if final_value >= 0 else ''}${final_value:,.2f}")
+                return final_value
+        
+        # Strategy 3: Parse __NEXT_DATA__
+        next_data_match = re.search(r'__NEXT_DATA__[^<]*({.*?})</script>', html, re.DOTALL)
+        if next_data_match:
+            try:
+                import json
+                data = json.loads(next_data_match.group(1))
+                
+                def find_profit(obj, depth=0):
+                    if depth > 10:
+                        return None
+                    if isinstance(obj, dict):
+                        for key in ['profit', 'pnl', 'allTimePnl', 'totalPnl', 'amount']:
+                            if key in obj and isinstance(obj[key], (int, float)):
+                                return float(obj[key])
+                        for value in obj.values():
+                            result = find_profit(value, depth + 1)
+                            if result is not None:
+                                return result
+                    elif isinstance(obj, list):
+                        for item in obj:
+                            result = find_profit(item, depth + 1)
+                            if result is not None:
+                                return result
+                    return None
+                
+                profit = find_profit(data)
+                if profit is not None:
+                    print(f"[DEBUG] Found profit in __NEXT_DATA__: ${profit:,.2f}")
+                    return profit
+            except Exception as e:
+                print(f"[DEBUG] Error parsing __NEXT_DATA__: {e}")
+        
+        # Strategy 4: DISABLED - Too many false positives
+        # Don't use generic dollar amount scraping as fallback
+        
+        print(f"[DEBUG] Could not find Profit/Loss value")
+        return None
+        
+    except Exception as e:
+        print(f"[DEBUG] Error scraping: {e}")
+        return None
+
 
 
 def fetch_user_activity(wallet_address: str, condition_id: str = None, limit: int = 100) -> List[Dict]:
@@ -101,14 +296,27 @@ def calculate_position_details(wallet_address: str, condition_id: str, outcome_i
             'pnl_percent': 0,
         }
     
+    # Calculate P&L manually: current_value - initial_value
+    shares = float(position.get('size', 0))
+    avg_price = float(position.get('avgPrice', 0))
+    current_price = float(position.get('curPrice', 0))
+    initial_value = float(position.get('initialValue', 0))
+    current_value = float(position.get('currentValue', 0))
+    
+    # Manual calculation: P&L = (current_price - avg_price) * shares
+    calculated_pnl = (current_price - avg_price) * shares
+    
+    # Or use: current_value - initial_value
+    calculated_pnl_alt = current_value - initial_value
+    
     return {
-        'shares': float(position.get('size', 0)),
-        'avg_price': float(position.get('avgPrice', 0)),
-        'initial_value': float(position.get('initialValue', 0)),
-        'current_value': float(position.get('currentValue', 0)),
-        'current_price': float(position.get('curPrice', 0)),
-        'pnl_cash': float(position.get('cashPnl', 0)),
-        'pnl_percent': float(position.get('percentPnl', 0)),
+        'shares': shares,
+        'avg_price': avg_price,
+        'initial_value': initial_value,
+        'current_value': current_value,
+        'current_price': current_price,
+        'pnl_cash': calculated_pnl_alt,  # Use calculated P&L instead of API's
+        'pnl_percent': (calculated_pnl_alt / initial_value * 100) if initial_value > 0 else 0,
         'total_bought': float(position.get('totalBought', 0)),
     }
 
@@ -131,9 +339,51 @@ def enrich_holder_with_position(holder: Dict, condition_id: str) -> Dict:
         'outcome': 'YES' if outcome_index == 0 else 'NO',
     }
     
-    # Get detailed position info
+    # Get detailed position info for this market
     position_details = calculate_position_details(wallet, condition_id, outcome_index)
     enriched.update(position_details)
+    
+    # Get all-time P&L from API
+    stats = fetch_user_stats(wallet)
+    
+    all_time_pnl = None
+    
+    # Handle different response types
+    if stats:
+        if isinstance(stats, dict):
+            # Individual user profit response
+            all_time_pnl = stats.get('amount') or stats.get('profit') or stats.get('pnl')
+            if all_time_pnl is not None:
+                all_time_pnl = float(all_time_pnl)
+                print(f"[DEBUG] Found all-time P&L from API for {wallet[:10]}: ${all_time_pnl:,.2f}")
+        elif isinstance(stats, list):
+            # Leaderboard response - find this wallet
+            for user_stat in stats:
+                if user_stat.get('proxyWallet', '').lower() == wallet.lower():
+                    all_time_pnl = float(user_stat.get('amount', 0))
+                    print(f"[DEBUG] Found all-time P&L from leaderboard for {wallet[:10]}: ${all_time_pnl:,.2f}")
+                    break
+    
+    # If not found in API, try scraping the profile page
+    if all_time_pnl is None:
+        print(f"[DEBUG] Trying to scrape profile for {wallet[:10]}")
+        all_time_pnl = scrape_user_profit_from_profile(wallet)
+    
+    if all_time_pnl is not None:
+        enriched['total_pnl_all_markets'] = all_time_pnl
+    else:
+        # Last resort: calculate from positions
+        print(f"[DEBUG] No profit data available, calculating from positions for {wallet[:10]}")
+        all_positions = fetch_all_user_positions(wallet)
+        if all_positions:
+            total_unrealized = sum(
+                float(pos.get('currentValue', 0)) - float(pos.get('initialValue', 0))
+                for pos in all_positions
+            )
+            total_realized = sum(float(pos.get('realizedPnl', 0)) for pos in all_positions)
+            enriched['total_pnl_all_markets'] = total_unrealized + total_realized
+        else:
+            enriched['total_pnl_all_markets'] = 0
     
     # Get recent activity for this market
     activity = fetch_user_activity(wallet, condition_id, limit=50)
@@ -201,13 +451,20 @@ def display_detailed_holders(holders: List[Dict], outcome_name: str, market_titl
         # P&L Information
         pnl_cash = holder.get('pnl_cash', 0)
         pnl_percent = holder.get('pnl_percent', 0)
+        total_pnl_all = holder.get('total_pnl_all_markets', 0)
         
         pnl_symbol = "📈" if pnl_cash >= 0 else "📉"
         pnl_sign = "+" if pnl_cash >= 0 else ""
         
-        print(f"\n   {pnl_symbol} PROFIT/LOSS:")
+        total_pnl_symbol = "📈" if total_pnl_all >= 0 else "📉"
+        total_pnl_sign = "+" if total_pnl_all >= 0 else ""
+        
+        print(f"\n   {pnl_symbol} PROFIT/LOSS (This Market):")
         print(f"      Cash P&L:           {pnl_sign}${pnl_cash:>10,.2f}")
         print(f"      Percent P&L:        {pnl_sign}{pnl_percent:>10,.2f}%")
+        
+        print(f"\n   {total_pnl_symbol} TOTAL P&L (All Markets):")
+        print(f"      Total Cash P&L:     {total_pnl_sign}${total_pnl_all:>10,.2f}")
         
         # Trading Activity for this market
         num_buys = holder.get('num_buys', 0)
@@ -318,9 +575,10 @@ def process_market(market_url: str, num_holders: int = 20):
                 continue
             
             try:
-                # Fetch holders
-                print(f"\nFetching holders for condition ID: {condition_id}\n")
-                holders_data = fetch_holders(condition_id, limit=num_holders)
+                # Always fetch 20 holders per outcome (API max)
+                fetch_limit = 20
+                print(f"\nFetching top {fetch_limit} holders for condition ID: {condition_id}\n")
+                holders_data = fetch_holders(condition_id, limit=fetch_limit)
                 
                 if holders_data and isinstance(holders_data, list):
                     for outcome_data in holders_data:
@@ -330,12 +588,19 @@ def process_market(market_url: str, num_holders: int = 20):
                             outcome_index = holders[0].get('outcomeIndex', 0)
                             outcome_name = 'YES' if outcome_index == 0 else 'NO'
                             
+                            # For NO holders, skip the first one (bugged) and get next 15
+                            # For YES holders, get first 15
+                            if outcome_name == 'NO':
+                                holders_to_process = holders[1:16]  # Skip first, take next 15 (indices 1-15)
+                            else:
+                                holders_to_process = holders[:15]  # Take first 15 (indices 0-14)
+                            
                             # Enrich each holder with detailed position data
-                            print(f"Fetching detailed position data for {len(holders[:num_holders])} {outcome_name} holders...")
+                            print(f"Fetching detailed position data for {len(holders_to_process)} {outcome_name} holders...")
                             print("This may take a moment...\n")
                             
                             enriched_holders = []
-                            for holder in holders[:num_holders]:
+                            for holder in holders_to_process:
                                 print(f"  Processing: {holder.get('name') or holder.get('proxyWallet', '')[:20]}...")
                                 enriched = enrich_holder_with_position(holder, condition_id)
                                 enriched_holders.append(enriched)
@@ -354,6 +619,10 @@ def process_market(market_url: str, num_holders: int = 20):
                                 avg_value_at_purchase = avg_shares * weighted_avg_price
                                 total_value_at_purchase = total_shares * weighted_avg_price
                                 
+                                # Calculate average total PnL
+                                total_pnl_sum = sum(h.get('total_pnl_all_markets', 0) for h in enriched_holders)
+                                avg_total_pnl = total_pnl_sum / len(enriched_holders) if enriched_holders else 0
+                                
                                 all_summaries.append({
                                     'outcome': outcome_name,
                                     'num_holders': len(enriched_holders),
@@ -362,7 +631,8 @@ def process_market(market_url: str, num_holders: int = 20):
                                     'simple_avg_price': simple_avg_price,
                                     'avg_value_at_purchase': avg_value_at_purchase,
                                     'total_shares': total_shares,
-                                    'total_value_at_purchase': total_value_at_purchase
+                                    'total_value_at_purchase': total_value_at_purchase,
+                                    'avg_total_pnl': avg_total_pnl
                                 })
                             
             except Exception as e:
@@ -377,6 +647,10 @@ def process_market(market_url: str, num_holders: int = 20):
             print(f"{'='*120}\n")
             
             for summary in all_summaries:
+                avg_pnl = summary['avg_total_pnl']
+                pnl_symbol = "📈" if avg_pnl >= 0 else "📉"
+                pnl_sign = "+" if avg_pnl >= 0 else ""
+                
                 print(f"  {summary['outcome']} OUTCOME:")
                 print(f"  {'─'*116}")
                 print(f"     Total Holders Analyzed:       {summary['num_holders']}")
@@ -386,6 +660,7 @@ def process_market(market_url: str, num_holders: int = 20):
                 print(f"     Avg Value at Purchase:        ${summary['avg_value_at_purchase']:,.2f}")
                 print(f"     Total Shares (Top {summary['num_holders']}):        {summary['total_shares']:,.2f}")
                 print(f"     Total Value at Purchase:      ${summary['total_value_at_purchase']:,.2f}")
+                print(f"     {pnl_symbol} Avg Total P&L (All Markets):  {pnl_sign}${avg_pnl:,.2f}")
                 print(f"\n")
             
             print(f"{'='*120}\n")
@@ -402,30 +677,19 @@ if __name__ == "__main__":
     print("=" * 60)
     print("POLYMARKET TOP HOLDERS ANALYSIS")
     print("=" * 60)
+    print("\nAnalyzing top 15 YES holders and top 15 NO holders")
+    print("(skipping first NO holder due to data issue)\n")
     
     # Get market URL
-    print("\nEnter Polymarket market URL:")
+    print("Enter Polymarket market URL:")
     market_url = input("> ").strip()
     
     if not market_url:
         print("Error: No URL provided")
         sys.exit(1)
     
-    # Get number of top holders
-    print("\nEnter number of top holders to analyze (5-100, default 20):")
-    num_input = input("> ").strip()
-    
-    if num_input:
-        try:
-            num_holders = int(num_input)
-            if num_holders < 5 or num_holders > 100:
-                print("Error: Number must be between 5 and 100")
-                sys.exit(1)
-        except ValueError:
-            print("Invalid number, using default of 20")
-            num_holders = 20
-    else:
-        num_holders = 20
+    # Fixed at 15 holders
+    num_holders = 15
     
     print(f"\nAnalyzing top {num_holders} holders...\n")
     process_market(market_url, num_holders=num_holders)
