@@ -408,40 +408,8 @@ if url:
         st.balloons()
         st.success("✅ Analysis Complete!")
         
-        # ===== NEW: COMPARISON SECTION =====
+        # ===== COMPARISON SECTION =====
         if yes_data and no_data:
-            st.markdown("##")
-            st.markdown("---")
-            st.header("🏆 Top Winners & Losers")
-            
-            # Combine all traders
-            all_traders = yes_data + no_data
-            df_all = pd.DataFrame(all_traders)
-            
-            # Filter only traders with P&L data
-            df_with_pnl = df_all[df_all['All-Time P&L'].notna()].copy()
-            
-            if len(df_with_pnl) > 0:
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("### 🎖️ Top 5 Winners (All-Time)")
-                    top_winners = df_with_pnl.nlargest(5, 'All-Time P&L')[['Name', 'All-Time P&L']]
-                    st.dataframe(
-                        top_winners.style.format({'All-Time P&L': '${:,.0f}'}),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                
-                with col2:
-                    st.markdown("### 📉 Top 5 Losers (All-Time)")
-                    top_losers = df_with_pnl.nsmallest(5, 'All-Time P&L')[['Name', 'All-Time P&L']]
-                    st.dataframe(
-                        top_losers.style.format({'All-Time P&L': '${:,.0f}'}),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-            
             st.markdown("##")
             st.markdown("---")
             st.header("⚖️ YES vs NO Comparison")
