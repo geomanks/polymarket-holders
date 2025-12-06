@@ -642,14 +642,13 @@ if url:
             tweet_text = f""" 
 {market_title_short} @polymarket
 {selected_question}
-TOP HOLDERS ANALYSIS:
+15 TOP HOLDERS:
 🟢YES Side:
 ├ Avg P&L: {yes_pnl_str}
 ├ Capital: ${yes_total_value:,}
 🔴NO Side:
 ├ Avg P&L: {no_pnl_str}
 ├ Capital: ${no_total_value:,}
-#Polymarket #Tracker #PredictionMarkets
 🔗 {short_url}
 """
             
