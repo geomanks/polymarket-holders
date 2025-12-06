@@ -323,6 +323,15 @@ if url:
         if yes_data:
             df_yes = pd.DataFrame(yes_data)
             display_results(df_yes, "YES Holders (Top 15)", "🟢")
+            
+            # Add download button
+            csv_yes = df_yes.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download YES Holders CSV",
+                data=csv_yes,
+                file_name=f"polymarket_yes_holders_{slug}.csv",
+                mime="text/csv",
+            )
         else:
             st.warning("No significant YES holders found.")
         
@@ -342,12 +351,123 @@ if url:
         if no_data:
             df_no = pd.DataFrame(no_data)
             display_results(df_no, "NO Holders (Top 15)", "🔴")
+            
+            # Add download button
+            csv_no = df_no.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download NO Holders CSV",
+                data=csv_no,
+                file_name=f"polymarket_no_holders_{slug}.csv",
+                mime="text/csv",
+            )
         else:
             st.warning("No significant NO holders found.")
 
         st.markdown("---")
         st.balloons()
         st.success("✅ Analysis Complete!")
+        
+        # ===== NEW: COMPARISON SECTION =====
+        if yes_data and no_data:
+            st.markdown("##")
+            st.markdown("---")
+            st.header("🏆 Top Winners & Losers")
+            
+            # Combine all traders
+            all_traders = yes_data + no_data
+            df_all = pd.DataFrame(all_traders)
+            
+            # Filter only traders with P&L data
+            df_with_pnl = df_all[df_all['All-Time P&L'].notna()].copy()
+            
+            if len(df_with_pnl) > 0:
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("### 🎖️ Top 5 Winners (All-Time)")
+                    top_winners = df_with_pnl.nlargest(5, 'All-Time P&L')[['Name', 'All-Time P&L']]
+                    st.dataframe(
+                        top_winners.style.format({'All-Time P&L': '${:,.0f}'}),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                
+                with col2:
+                    st.markdown("### 📉 Top 5 Losers (All-Time)")
+                    top_losers = df_with_pnl.nsmallest(5, 'All-Time P&L')[['Name', 'All-Time P&L']]
+                    st.dataframe(
+                        top_losers.style.format({'All-Time P&L': '${:,.0f}'}),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+            
+            st.markdown("##")
+            st.markdown("---")
+            st.header("⚖️ YES vs NO Comparison")
+            
+            df_yes = pd.DataFrame(yes_data)
+            df_no = pd.DataFrame(no_data)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 🟢 YES Side")
+                yes_avg_pnl = df_yes['All-Time P&L'].mean()
+                yes_total_value = df_yes['Value'].sum()
+                yes_total_shares = df_yes['Shares'].sum()
+                yes_avg_entry = (df_yes['Shares'] * df_yes['Entry']).sum() / yes_total_shares if yes_total_shares > 0 else 0
+                
+                st.metric("Avg All-Time P&L", f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A")
+                st.metric("Total Capital", f"${yes_total_value:,}")
+                st.metric("Total Shares", f"{yes_total_shares:,}")
+                st.metric("Avg Entry Price", f"${yes_avg_entry:.3f}")
+                
+                # Smart money indicator
+                profitable_yes = len(df_yes[df_yes['All-Time P&L'] > 0])
+                total_yes = len(df_yes[df_yes['All-Time P&L'].notna()])
+                if total_yes > 0:
+                    win_rate = (profitable_yes / total_yes) * 100
+                    st.metric("Profitable Traders", f"{profitable_yes}/{total_yes} ({win_rate:.0f}%)")
+            
+            with col2:
+                st.markdown("### 🔴 NO Side")
+                no_avg_pnl = df_no['All-Time P&L'].mean()
+                no_total_value = df_no['Value'].sum()
+                no_total_shares = df_no['Shares'].sum()
+                no_avg_entry = (df_no['Shares'] * df_no['Entry']).sum() / no_total_shares if no_total_shares > 0 else 0
+                
+                st.metric("Avg All-Time P&L", f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A")
+                st.metric("Total Capital", f"${no_total_value:,}")
+                st.metric("Total Shares", f"{no_total_shares:,}")
+                st.metric("Avg Entry Price", f"${no_avg_entry:.3f}")
+                
+                # Smart money indicator
+                profitable_no = len(df_no[df_no['All-Time P&L'] > 0])
+                total_no = len(df_no[df_no['All-Time P&L'].notna()])
+                if total_no > 0:
+                    win_rate = (profitable_no / total_no) * 100
+                    st.metric("Profitable Traders", f"{profitable_no}/{total_no} ({win_rate:.0f}%)")
+            
+            # Smart money verdict
+            st.markdown("###")
+            if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
+                if yes_avg_pnl > no_avg_pnl:
+                    diff = yes_avg_pnl - no_avg_pnl
+                    st.info(f"💡 **Smart Money Indicator:** YES holders are more profitable on average (+${diff:,.0f} vs NO)")
+                elif no_avg_pnl > yes_avg_pnl:
+                    diff = no_avg_pnl - yes_avg_pnl
+                    st.info(f"💡 **Smart Money Indicator:** NO holders are more profitable on average (+${diff:,.0f} vs YES)")
+                else:
+                    st.info("💡 **Smart Money Indicator:** Both sides have equally profitable traders")
 
 st.markdown("---")
 st.caption("A tool for tracking large positions on Polymarket. Data fetched via Polymarket APIs. [GitHub Repository](https://github.com/geomanks/polymarket-holders)")
+
+# Add share section
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown("[![Star on GitHub](https://img.shields.io/github/stars/geomanks/polymarket-holders?style=social)](https://github.com/geomanks/polymarket-holders)")
+with col2:
+    st.markdown("[![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Fgithub.com%2Fgeomanks%2Fpolymarket-holders)](https://twitter.com/intent/tweet?text=Check%20out%20this%20Polymarket%20Whale%20Tracker!&url=https://polymarket-whale-tracker.streamlit.app)")
+with col3:
+    st.markdown("**Made with ❤️ for the Polymarket community**")
