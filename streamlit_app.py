@@ -532,8 +532,8 @@ if url:
                 short_url = full_url
             
             # Create the tweet text
-            tweet_text = f"""@polymarket 
-{market_title_short}
+            tweet_text = f""" 
+{market_title_short} @polymarket
 {selected.get('question', '')}
 TOP 15 HOLDERS
 🟢YES Side:
