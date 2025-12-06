@@ -103,7 +103,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💰 Polymarket Whale Tracker")
+st.title("Polymarket Top Holders Tracker")
 st.write("### **See who's winning and who's losing in any market**")
 st.divider()
 
