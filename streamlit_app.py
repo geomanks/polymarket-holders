@@ -22,54 +22,139 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    /* Main header */
     .main-header {
         text-align: center;
-        padding: 2rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 10px;
+        padding: 3rem 1rem;
+        background: #1a1a2e;
+        border-radius: 15px;
         margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .main-header h1 {
-        color: white;
-        font-size: 3rem;
+        color: #ffffff;
+        font-size: 3.5rem;
         margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        font-weight: 800;
+        letter-spacing: -1px;
     }
     .main-header p {
-        color: rgba(255,255,255,0.9);
-        font-size: 1.2rem;
-        margin-top: 0.5rem;
+        color: #ffffff;
+        font-size: 1.3rem;
+        margin-top: 1rem;
+        font-weight: 600;
+        opacity: 0.95;
     }
+    
+    /* Metric cards */
     .metric-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 4px solid #667eea;
+        background: #ffffff;
+        padding: 2rem;
+        border-radius: 12px;
+        border: 3px solid #e0e0e0;
         margin: 1rem 0;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
+    .metric-card p:first-child {
+        color: #424242;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+    .metric-card p:last-child {
+        color: #000000;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0;
+    }
+    
+    /* Success (green) */
     .success-metric {
-        background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
-        border-left: 4px solid #28a745;
+        background: #e8f5e9;
+        border: 3px solid #4caf50;
     }
+    .success-metric p:first-child {
+        color: #1b5e20;
+    }
+    .success-metric p:last-child {
+        color: #2e7d32;
+    }
+    
+    /* Danger (yellow/red) */
     .danger-metric {
-        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
-        border-left: 4px solid #e74c3c;
+        background: #fff3e0;
+        border: 3px solid #ff9800;
     }
-    .stDataFrame {
-        border: 2px solid #667eea;
-        border-radius: 10px;
-        overflow: hidden;
+    .danger-metric p:first-child {
+        color: #e65100;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem;
-        font-weight: bold;
+    .danger-metric p:last-child {
+        color: #f57c00;
     }
+    
+    /* Info boxes */
     .info-box {
         background: #e3f2fd;
-        padding: 1rem;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 3px solid #1976d2;
+        margin: 1.5rem 0;
+    }
+    .info-box h3 {
+        color: #0d47a1;
+        font-weight: 700;
+        font-size: 1.4rem;
+    }
+    
+    /* Selected market box */
+    .selected-market {
+        background: #f3e5f5;
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 3px solid #9c27b0;
+        margin: 1.5rem 0;
+    }
+    .selected-market h4 {
+        color: #4a148c;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.1rem;
+    }
+    .selected-market p {
+        color: #000000;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        font-size: 1.2rem;
+        font-weight: 700;
+        padding: 1rem 3rem;
+        background: #1976d2;
+        color: white;
+        border: none;
         border-radius: 8px;
-        border-left: 4px solid #2196f3;
-        margin: 1rem 0;
+    }
+    .stButton > button:hover {
+        background: #1565c0;
+        border: none;
+    }
+    
+    /* Section headers */
+    h3 {
+        color: #000000;
+        font-weight: 800;
+        font-size: 1.8rem;
+        margin-top: 2rem;
+    }
+    
+    /* Make all text darker and bolder */
+    p, span, div {
+        color: #212121;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -340,9 +425,9 @@ if url:
         question = selected_market.get('question', 'Unknown')
         
         st.markdown(f"""
-        <div class="metric-card">
-            <h4 style="margin:0;">🎲 Selected Market</h4>
-            <p style="margin:0.5rem 0 0 0; font-size:1.1rem;"><strong>{question}</strong></p>
+        <div class="selected-market">
+            <h4>🎲 SELECTED MARKET</h4>
+            <p>{question}</p>
         </div>
         """, unsafe_allow_html=True)
         
