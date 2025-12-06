@@ -12,7 +12,7 @@ from typing import Optional, List, Dict
 # ===== PAGE SETUP =====
 # Use a dark theme for a sleek, modern look, and a wider layout.
 st.set_page_config(
-    page_title="Polymarket Whale Tracker 🐋", 
+    page_title="Polymarket Top Holders Tracker", 
     page_icon="💰", 
     layout="wide", 
     initial_sidebar_state="collapsed"
