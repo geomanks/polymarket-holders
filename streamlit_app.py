@@ -648,7 +648,6 @@ TOP HOLDERS ANALYSIS:
 🔴NO Side:
 ├ Avg P&L: {no_pnl_str}
 ├ Capital: ${no_total_value:,}
-#Polymarket #Tracker #PredictionMarkets
 🔗 {short_url}
 """
             
