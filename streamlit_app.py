@@ -524,7 +524,7 @@ if url:
             no_winners_str = f"{profitable_no}/{total_no} ({(profitable_no/total_no*100):.0f}%)" if total_no > 0 else "N/A"
             
             # Shorten the URL
-            full_url = f"https://polymarket-holders-exp.streamlit.app/"
+            full_url = f"https://polymarket-holders.streamlit.app/"
             try:
                 response = requests.get(f"https://tinyurl.com/api-create.php?url={full_url}", timeout=3)
                 short_url = response.text if response.status_code == 200 else full_url
