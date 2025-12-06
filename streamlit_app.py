@@ -229,45 +229,44 @@ def enrich_holder_with_position(holder: Dict, condition_id: str) -> Dict:
 # Input
 url = st.text_input("Enter Polymarket Market URL:", placeholder="https://polymarket.com/event/...")
 
-if st.button("🔍 Analyze", type="primary"):
-    if not url:
-        st.error("Please enter a Polymarket URL")
-    else:
-        try:
-            # Extract slug
-            slug = extract_slug(url)
-            if not slug:
-                st.error("Invalid Polymarket URL")
-                st.stop()
-            
-            with st.spinner("Fetching market data..."):
-                market_data = fetch_market_data(slug)
-            
-            market_title = market_data.get('title', 'Unknown')
-            st.success(f"**Market:** {market_title}")
-            
-            markets = market_data.get('markets', [])
-            
-            # Filter for yes/no markets
-            yes_no_markets = [m for m in markets if m.get('enableOrderBook', False)]
-            
-            if not yes_no_markets:
-                st.error("No yes/no markets found")
-                st.stop()
-            
-            # Handle multiple markets
-            selected_market = None
-            if len(yes_no_markets) > 1:
-                options = [m.get('question', f'Market {i}') for i, m in enumerate(yes_no_markets, 1)]
-                choice = st.selectbox("Select market:", options)
-                selected_market = yes_no_markets[options.index(choice)]
-            else:
-                selected_market = yes_no_markets[0]
-            
-            condition_id = selected_market.get('conditionId')
-            question = selected_market.get('question', 'Unknown')
-            
-            st.info(f"**Question:** {question}")
+if url:
+    try:
+        # Extract slug
+        slug = extract_slug(url)
+        if not slug:
+            st.error("Invalid Polymarket URL")
+            st.stop()
+        
+        with st.spinner("Fetching market data..."):
+            market_data = fetch_market_data(slug)
+        
+        market_title = market_data.get('title', 'Unknown')
+        st.success(f"**Event:** {market_title}")
+        
+        markets = market_data.get('markets', [])
+        
+        # Filter for yes/no markets
+        yes_no_markets = [m for m in markets if m.get('enableOrderBook', False)]
+        
+        if not yes_no_markets:
+            st.error("No yes/no markets found")
+            st.stop()
+        
+        # Handle multiple markets - show selection FIRST
+        selected_index = 0
+        if len(yes_no_markets) > 1:
+            st.warning(f"This event has {len(yes_no_markets)} markets. Select which one to analyze:")
+            options = [m.get('question', f'Market {i}') for i, m in enumerate(yes_no_markets, 1)]
+            selected_index = st.selectbox("Select market:", range(len(options)), format_func=lambda x: options[x], key="market_selector")
+        
+        selected_market = yes_no_markets[selected_index]
+        condition_id = selected_market.get('conditionId')
+        question = selected_market.get('question', 'Unknown')
+        
+        st.info(f"**Analyzing:** {question}")
+        
+        # NOW show the analyze button
+        if st.button("🔍 Analyze This Market", type="primary", key="analyze_btn"):
             
             # Fetch holders
             with st.spinner("Fetching holders..."):
@@ -349,10 +348,10 @@ if st.button("🔍 Analyze", type="primary"):
             
             st.success("✅ Analysis complete!")
             
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
 
 
 # Footer
