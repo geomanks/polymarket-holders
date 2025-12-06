@@ -13,7 +13,7 @@ import urllib.parse
 # ===== PAGE SETUP =====
 # Use a dark theme for a sleek, modern look, and a wider layout.
 st.set_page_config(
-    page_title="Polymarket Whale Tracker 🐋", 
+    page_title="Polymarket Top Holders Tracker", 
     page_icon="💰", 
     layout="wide", 
     initial_sidebar_state="collapsed"
@@ -104,8 +104,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💰 Polymarket Whale Tracker")
-st.write("### **See who's winning and who's losing in any market**")
+st.title("Polymarket Top Holders Tracker")
+st.write("### **See the top traders in any market**")
 st.divider()
 
 # ===== CORE FUNCTIONS (No Change needed here for visuals) =====
