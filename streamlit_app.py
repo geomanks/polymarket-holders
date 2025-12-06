@@ -318,7 +318,8 @@ def run_analysis(selected_market, market_data):
                 if holders[0].get('outcomeIndex') == 0:
                     yes_raw = holders[:15]
                 else: 
-                    no_raw = holders[:15]
+                    # Skip first NO holder (index 0) due to API bug, take next 15
+                    no_raw = holders[1:16]  # Skip index 0, take indices 1-15
         
         status_box.write("Fetching position data and all-time P&L for all holders...")
         
@@ -641,13 +642,14 @@ if url:
             tweet_text = f""" 
 {market_title_short} @polymarket
 {selected_question}
-15 TOP HOLDERS:
+TOP HOLDERS ANALYSIS:
 🟢YES Side:
 ├ Avg P&L: {yes_pnl_str}
 ├ Capital: ${yes_total_value:,}
 🔴NO Side:
 ├ Avg P&L: {no_pnl_str}
 ├ Capital: ${no_total_value:,}
+#Polymarket #Tracker #PredictionMarkets
 🔗 {short_url}
 """
             
