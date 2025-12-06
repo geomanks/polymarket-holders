@@ -229,7 +229,8 @@ def display_results(df: pd.DataFrame, title: str, color_code: str):
         .applymap(format_pnl_style, subset=['Market P&L', 'All-Time P&L'])
         .set_properties(**{'background-color': '#161b22', 'color': '#c9d1d9'}), # Dark theme background/text for table cells
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        height=None  # Show all rows without scrolling
     )
     
     # Metrics
@@ -277,12 +278,12 @@ if url:
     
     if len(markets) > 1:
         options = [m.get('question', f'Market {i}') for i, m in enumerate(markets, 1)]
-        idx = st.selectbox(
+        selected_question = st.selectbox(
             "**Select specific market to analyze:**", 
-            range(len(options)), 
-            format_func=lambda x: options[x],
+            options,
             key="market_select"
         )
+        idx = options.index(selected_question)
         selected = markets[idx]
     else:
         selected = markets[0]
