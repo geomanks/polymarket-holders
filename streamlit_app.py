@@ -217,6 +217,9 @@ def display_results(df: pd.DataFrame, title: str, color_code: str):
     st.header(f"{color_code} {title}")
     
     # Apply custom styling to the DataFrame
+    # Calculate height to show all rows without scrolling (approximately 35px per row + 38px for header)
+    table_height = len(df) * 35 + 38
+    
     st.dataframe(
         df.style.format({
             'Shares': '{:,}',
@@ -230,7 +233,7 @@ def display_results(df: pd.DataFrame, title: str, color_code: str):
         .set_properties(**{'background-color': '#161b22', 'color': '#c9d1d9'}), # Dark theme background/text for table cells
         use_container_width=True,
         hide_index=True,
-        height=None  # Show all rows without scrolling
+        height=table_height
     )
     
     # Metrics
