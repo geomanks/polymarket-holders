@@ -508,206 +508,234 @@ if analyze_btn:
                 st.error("No markets found for this event.")
                 st.stop()
             
-            if len(markets) > 1:
-                st.info(f"This event has {len(markets)} sub-markets. Select one below:")
-                market_options = {m.get('question', f"Market {i}"): m for i, m in enumerate(markets)}
-                selected_question = st.selectbox("Select Market", options=list(market_options.keys()))
-                selected = market_options[selected_question]
-            else:
-                selected = markets[0]
-            
-            condition_id = selected.get('conditionId')
-            st.info(f"**Question:** {selected.get('question', 'N/A')}")
-            
-            st.markdown("##")
-            st.divider()
-            
-            # YES HOLDERS
-            st.markdown('<div class="section-header"><h2>🟢 Analyzing YES Holders...</h2></div>', unsafe_allow_html=True)
-            
-            yes_raw = fetch_holders(condition_id)
-            yes_data = []
-            total_yes = len(yes_raw)
-            
-            progress_container = st.empty()
-            status_container = st.empty()
-            
-            for i, h in enumerate(yes_raw):
-                holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
-                status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_yes})")
-                
-                percentage = int(((i + 1) / total_yes) * 100)
-                progress_container.progress((i+1)/total_yes, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
-                
-                enriched = enrich_holder(h, condition_id)
-                if enriched:
-                    yes_data.append(enriched)
-                time.sleep(0.15)
-            
-            progress_container.empty()
-            status_container.empty()
-            
-            if yes_data:
-                df_yes = pd.DataFrame(yes_data)
-                display_results(df_yes, "YES Holders (Top 15)", "🟢")
-                
-                csv_yes = df_yes.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download YES Holders CSV",
-                    data=csv_yes,
-                    file_name=f"polymarket_yes_holders_{slug}.csv",
-                    mime="text/csv",
-                )
-            else:
-                st.warning("No significant YES holders found.")
-            
-            # NO HOLDERS
-            st.markdown("##")
-            st.markdown("---")
-            st.markdown('<div class="section-header"><h2>🔴 Analyzing NO Holders...</h2></div>', unsafe_allow_html=True)
-            
-            no_raw = fetch_holders(condition_id)
-            no_data = []
-            total_no = len(no_raw)
-            
-            progress_container = st.empty()
-            status_container = st.empty()
-            
-            for i, h in enumerate(no_raw):
-                holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
-                status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_no})")
-                
-                percentage = int(((i + 1) / total_no) * 100)
-                progress_container.progress((i+1)/total_no, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
-                
-                enriched = enrich_holder(h, condition_id)
-                if enriched:
-                    no_data.append(enriched)
-                time.sleep(0.15)
-            
-            progress_container.empty()
-            status_container.empty()
-            
-            if no_data:
-                df_no = pd.DataFrame(no_data)
-                display_results(df_no, "NO Holders (Top 15)", "🔴")
-                
-                csv_no = df_no.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download NO Holders CSV",
-                    data=csv_no,
-                    file_name=f"polymarket_no_holders_{slug}.csv",
-                    mime="text/csv",
-                )
-            else:
-                st.warning("No significant NO holders found.")
+            # Store in session state
+            st.session_state['market_data'] = market_data
+            st.session_state['markets'] = markets
+            st.session_state['slug'] = slug
 
-            st.markdown("---")
-            st.success("✅ Analysis Complete!")
+# Market selection (separate from analyze button)
+if 'markets' in st.session_state:
+    markets = st.session_state['markets']
+    market_data = st.session_state['market_data']
+    slug = st.session_state['slug']
+    
+    if len(markets) > 1:
+        st.info(f"This event has {len(markets)} sub-markets. Select one below:")
+        market_options = {m.get('question', f"Market {i}"): m for i, m in enumerate(markets)}
+        selected_question = st.selectbox("Select Market", options=list(market_options.keys()))
+        selected = market_options[selected_question]
+        
+        # Add a button to proceed with selected market
+        if st.button("🚀 ANALYZE SELECTED MARKET", use_container_width=True, type="primary"):
+            st.session_state['selected_market'] = selected
+            st.session_state['proceed_analysis'] = True
+    else:
+        selected = markets[0]
+        st.session_state['selected_market'] = selected
+        st.session_state['proceed_analysis'] = True
+
+# Run analysis when ready
+if st.session_state.get('proceed_analysis', False):
+    selected = st.session_state['selected_market']
+    condition_id = selected.get('conditionId')
+    st.info(f"**Question:** {selected.get('question', 'N/A')}")
+# Run analysis when ready
+if st.session_state.get('proceed_analysis', False):
+    selected = st.session_state['selected_market']
+    market_data = st.session_state['market_data']
+    slug = st.session_state['slug']
+    condition_id = selected.get('conditionId')
+    st.info(f"**Question:** {selected.get('question', 'N/A')}")
+    
+    st.markdown("##")
+    st.divider()
+    
+    # YES HOLDERS
+    st.markdown('<div class="section-header"><h2>🟢 Analyzing YES Holders...</h2></div>', unsafe_allow_html=True)
+    
+    yes_raw = fetch_holders(condition_id)
+    yes_data = []
+    total_yes = len(yes_raw)
+    
+    progress_container = st.empty()
+    status_container = st.empty()
+    
+    for i, h in enumerate(yes_raw):
+        holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
+        status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_yes})")
+        
+        percentage = int(((i + 1) / total_yes) * 100)
+        progress_container.progress((i+1)/total_yes, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
+        
+        enriched = enrich_holder(h, condition_id)
+        if enriched:
+            yes_data.append(enriched)
+        time.sleep(0.15)
+    
+    progress_container.empty()
+    status_container.empty()
+    
+    if yes_data:
+        df_yes = pd.DataFrame(yes_data)
+        display_results(df_yes, "YES Holders (Top 15)", "🟢")
+        
+        csv_yes = df_yes.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download YES Holders CSV",
+            data=csv_yes,
+            file_name=f"polymarket_yes_holders_{slug}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.warning("No significant YES holders found.")
+    
+    # NO HOLDERS
+    st.markdown("##")
+    st.markdown("---")
+    st.markdown('<div class="section-header"><h2>🔴 Analyzing NO Holders...</h2></div>', unsafe_allow_html=True)
+    
+    no_raw = fetch_holders(condition_id)
+    no_data = []
+    total_no = len(no_raw)
+    
+    progress_container = st.empty()
+    status_container = st.empty()
+    
+    for i, h in enumerate(no_raw):
+        holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
+        status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_no})")
+        
+        percentage = int(((i + 1) / total_no) * 100)
+        progress_container.progress((i+1)/total_no, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
+        
+        enriched = enrich_holder(h, condition_id)
+        if enriched:
+            no_data.append(enriched)
+        time.sleep(0.15)
+    
+    progress_container.empty()
+    status_container.empty()
+    
+    if no_data:
+        df_no = pd.DataFrame(no_data)
+        display_results(df_no, "NO Holders (Top 15)", "🔴")
+        
+        csv_no = df_no.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download NO Holders CSV",
+            data=csv_no,
+            file_name=f"polymarket_no_holders_{slug}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.warning("No significant NO holders found.")
+
+    st.markdown("---")
+    st.success("✅ Analysis Complete!")
+    
+    # Store data in session state
+    st.session_state['analysis_yes_data'] = yes_data
+    st.session_state['analysis_no_data'] = no_data
+    st.session_state['analysis_slug'] = slug
+    st.session_state['analysis_market_title'] = market_data.get('title')
+    
+    # ===== COMPARISON SECTION =====
+    if yes_data and no_data:
+        st.markdown("##")
+        st.markdown("---")
+        st.markdown('<div class="section-header"><h2>⚖️ YES vs NO Comparison</h2></div>', unsafe_allow_html=True)
+        
+        df_yes = pd.DataFrame(yes_data)
+        df_no = pd.DataFrame(no_data)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### 🟢 YES Side")
+            yes_avg_pnl = df_yes['All-Time P&L'].mean()
+            yes_total_value = df_yes['Value'].sum()
+            yes_total_shares = df_yes['Shares'].sum()
+            yes_avg_entry = (df_yes['Shares'] * df_yes['Entry']).sum() / yes_total_shares if yes_total_shares > 0 else 0
             
-            # Store data in session state
-            st.session_state['analysis_yes_data'] = yes_data
-            st.session_state['analysis_no_data'] = no_data
-            st.session_state['analysis_slug'] = slug
-            st.session_state['analysis_market_title'] = market_data.get('title')
+            st.metric("Avg All-Time P&L", f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A")
+            st.metric("Total Capital", f"${yes_total_value:,}")
+            st.metric("Total Shares", f"{yes_total_shares:,}")
+            st.metric("Avg Entry Price", f"${yes_avg_entry:.3f}")
             
-            # ===== COMPARISON SECTION =====
-            if yes_data and no_data:
-                st.markdown("##")
-                st.markdown("---")
-                st.markdown('<div class="section-header"><h2>⚖️ YES vs NO Comparison</h2></div>', unsafe_allow_html=True)
-                
-                df_yes = pd.DataFrame(yes_data)
-                df_no = pd.DataFrame(no_data)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("### 🟢 YES Side")
-                    yes_avg_pnl = df_yes['All-Time P&L'].mean()
-                    yes_total_value = df_yes['Value'].sum()
-                    yes_total_shares = df_yes['Shares'].sum()
-                    yes_avg_entry = (df_yes['Shares'] * df_yes['Entry']).sum() / yes_total_shares if yes_total_shares > 0 else 0
-                    
-                    st.metric("Avg All-Time P&L", f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A")
-                    st.metric("Total Capital", f"${yes_total_value:,}")
-                    st.metric("Total Shares", f"{yes_total_shares:,}")
-                    st.metric("Avg Entry Price", f"${yes_avg_entry:.3f}")
-                    
-                    profitable_yes = len(df_yes[df_yes['All-Time P&L'] > 0])
-                    total_yes = len(df_yes[df_yes['All-Time P&L'].notna()])
-                    if total_yes > 0:
-                        win_rate = (profitable_yes / total_yes) * 100
-                        st.metric("Profitable Traders", f"{profitable_yes}/{total_yes} ({win_rate:.0f}%)")
-                
-                with col2:
-                    st.markdown("### 🔴 NO Side")
-                    no_avg_pnl = df_no['All-Time P&L'].mean()
-                    no_total_value = df_no['Value'].sum()
-                    no_total_shares = df_no['Shares'].sum()
-                    no_avg_entry = (df_no['Shares'] * df_no['Entry']).sum() / no_total_shares if no_total_shares > 0 else 0
-                    
-                    st.metric("Avg All-Time P&L", f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A")
-                    st.metric("Total Capital", f"${no_total_value:,}")
-                    st.metric("Total Shares", f"{no_total_shares:,}")
-                    st.metric("Avg Entry Price", f"${no_avg_entry:.3f}")
-                    
-                    profitable_no = len(df_no[df_no['All-Time P&L'] > 0])
-                    total_no = len(df_no[df_no['All-Time P&L'].notna()])
-                    if total_no > 0:
-                        win_rate = (profitable_no / total_no) * 100
-                        st.metric("Profitable Traders", f"{profitable_no}/{total_no} ({win_rate:.0f}%)")
-                
-                # Smart money verdict
-                st.markdown("###")
-                if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
-                    if yes_avg_pnl > no_avg_pnl:
-                        diff = yes_avg_pnl - no_avg_pnl
-                        st.info(f"💡 **Smart Money Indicator:** YES holders are more profitable on average (+${diff:,.0f} vs NO)")
-                    elif no_avg_pnl > yes_avg_pnl:
-                        diff = no_avg_pnl - yes_avg_pnl
-                        st.info(f"💡 **Smart Money Indicator:** NO holders are more profitable on average (+${diff:,.0f} vs YES)")
-                    else:
-                        st.info("💡 **Smart Money Indicator:** Both sides have equally profitable traders")
-                
-                # ===== TWITTER SHARE SECTION =====
-                st.markdown("##")
-                st.markdown("---")
-                st.markdown('<div class="section-header"><h2>🐦 Share on Twitter</h2></div>', unsafe_allow_html=True)
-                
-                market_title_short = market_data.get('title')[:60] + "..." if len(market_data.get('title')) > 60 else market_data.get('title')
-                
-                # Determine smart money verdict
-                if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
-                    if yes_avg_pnl > no_avg_pnl:
-                        diff = yes_avg_pnl - no_avg_pnl
-                        verdict = f"YES holders +${diff:,.0f} more profitable"
-                        winner_emoji = "🟢"
-                    elif no_avg_pnl > yes_avg_pnl:
-                        diff = no_avg_pnl - yes_avg_pnl
-                        verdict = f"NO holders +${diff:,.0f} more profitable"
-                        winner_emoji = "🔴"
-                    else:
-                        verdict = "Both sides equally profitable"
-                        winner_emoji = "⚖️"
-                else:
-                    verdict = "Insufficient data"
-                    winner_emoji = "❓"
-                
-                yes_pnl_str = f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A"
-                no_pnl_str = f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A"
-                yes_winners_str = f"{profitable_yes}/{total_yes} ({(profitable_yes/total_yes*100):.0f}%)" if total_yes > 0 else "N/A"
-                no_winners_str = f"{profitable_no}/{total_no} ({(profitable_no/total_no*100):.0f}%)" if total_no > 0 else "N/A"
-                
-                # Shorten the URL
-                full_url = f"https://polymarket-holders.streamlit.app/"
-                try:
-                    response = requests.get(f"https://tinyurl.com/api-create.php?url={full_url}", timeout=3)
-                    short_url = response.text if response.status_code == 200 else full_url
-                except:
-                    short_url = full_url
-                
-                tweet_text = f"""
+            profitable_yes = len(df_yes[df_yes['All-Time P&L'] > 0])
+            total_yes = len(df_yes[df_yes['All-Time P&L'].notna()])
+            if total_yes > 0:
+                win_rate = (profitable_yes / total_yes) * 100
+                st.metric("Profitable Traders", f"{profitable_yes}/{total_yes} ({win_rate:.0f}%)")
+        
+        with col2:
+            st.markdown("### 🔴 NO Side")
+            no_avg_pnl = df_no['All-Time P&L'].mean()
+            no_total_value = df_no['Value'].sum()
+            no_total_shares = df_no['Shares'].sum()
+            no_avg_entry = (df_no['Shares'] * df_no['Entry']).sum() / no_total_shares if no_total_shares > 0 else 0
+            
+            st.metric("Avg All-Time P&L", f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A")
+            st.metric("Total Capital", f"${no_total_value:,}")
+            st.metric("Total Shares", f"{no_total_shares:,}")
+            st.metric("Avg Entry Price", f"${no_avg_entry:.3f}")
+            
+            profitable_no = len(df_no[df_no['All-Time P&L'] > 0])
+            total_no = len(df_no[df_no['All-Time P&L'].notna()])
+            if total_no > 0:
+                win_rate = (profitable_no / total_no) * 100
+                st.metric("Profitable Traders", f"{profitable_no}/{total_no} ({win_rate:.0f}%)")
+        
+        # Smart money verdict
+        st.markdown("###")
+        if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
+            if yes_avg_pnl > no_avg_pnl:
+                diff = yes_avg_pnl - no_avg_pnl
+                st.info(f"💡 **Smart Money Indicator:** YES holders are more profitable on average (+${diff:,.0f} vs NO)")
+            elif no_avg_pnl > yes_avg_pnl:
+                diff = no_avg_pnl - yes_avg_pnl
+                st.info(f"💡 **Smart Money Indicator:** NO holders are more profitable on average (+${diff:,.0f} vs YES)")
+            else:
+                st.info("💡 **Smart Money Indicator:** Both sides have equally profitable traders")
+        
+        # ===== TWITTER SHARE SECTION =====
+        st.markdown("##")
+        st.markdown("---")
+        st.markdown('<div class="section-header"><h2>🐦 Share on Twitter</h2></div>', unsafe_allow_html=True)
+        
+        market_title_short = market_data.get('title')[:60] + "..." if len(market_data.get('title')) > 60 else market_data.get('title')
+        
+        # Determine smart money verdict
+        if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
+            if yes_avg_pnl > no_avg_pnl:
+                diff = yes_avg_pnl - no_avg_pnl
+                verdict = f"YES holders +${diff:,.0f} more profitable"
+                winner_emoji = "🟢"
+            elif no_avg_pnl > yes_avg_pnl:
+                diff = no_avg_pnl - yes_avg_pnl
+                verdict = f"NO holders +${diff:,.0f} more profitable"
+                winner_emoji = "🔴"
+            else:
+                verdict = "Both sides equally profitable"
+                winner_emoji = "⚖️"
+        else:
+            verdict = "Insufficient data"
+            winner_emoji = "❓"
+        
+        yes_pnl_str = f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A"
+        no_pnl_str = f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A"
+        yes_winners_str = f"{profitable_yes}/{total_yes} ({(profitable_yes/total_yes*100):.0f}%)" if total_yes > 0 else "N/A"
+        no_winners_str = f"{profitable_no}/{total_no} ({(profitable_no/total_no*100):.0f}%)" if total_no > 0 else "N/A"
+        
+        # Shorten the URL
+        full_url = f"https://polymarket-holders.streamlit.app/"
+        try:
+            response = requests.get(f"https://tinyurl.com/api-create.php?url={full_url}", timeout=3)
+            short_url = response.text if response.status_code == 200 else full_url
+        except:
+            short_url = full_url
+        
+        tweet_text = f"""
 {market_title_short} @polymarket
 {selected.get('question', '')}
 TOP 15 HOLDERS
@@ -719,15 +747,15 @@ TOP 15 HOLDERS
 ├ Capital: ${no_total_value:,}
 🔗 {short_url}
 """
-                
-                st.markdown("### 📝 Your Tweet (Ready to Post!)")
-                st.code(tweet_text, language=None)
-                
-                twitter_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}"
-                
-                st.link_button("🐦 Post to Twitter", twitter_url, use_container_width=True, type="primary")
-                
-                st.success("✅ Click the button above - your tweet is ready! Twitter will open with this text pre-filled.")
+        
+        st.markdown("### 📝 Your Tweet (Ready to Post!)")
+        st.code(tweet_text, language=None)
+        
+        twitter_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}"
+        
+        st.link_button("🐦 Post to Twitter", twitter_url, use_container_width=True, type="primary")
+        
+        st.success("✅ Click the button above - your tweet is ready! Twitter will open with this text pre-filled.")
 
 # ===== FOOTER =====
 st.markdown("---")
