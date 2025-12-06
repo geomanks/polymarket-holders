@@ -631,13 +631,8 @@ if url:
             yes_pnl_str = f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A"
             no_pnl_str = f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A"
             
-            full_url = f"https://polymarket-holders.streamlit.app/"
-            try:
-                # Attempt to get a short URL
-                response = requests.get(f"https://tinyurl.com/api-create.php?url={full_url}", timeout=3)
-                short_url = response.text if response.status_code == 200 else full_url
-            except:
-                short_url = full_url
+            full_url = f"https://polyhold.streamlit.app/"
+
             
             tweet_text = f""" 
 {market_title_short} @polymarket
@@ -649,7 +644,7 @@ if url:
 🔴NO Side:
 ├ Avg P&L: {no_pnl_str}
 ├ Capital: ${no_total_value:,}
-🔗 {short_url}
+{full_url}
 """
             
             st.markdown("### 📝 Your Tweet Preview")
