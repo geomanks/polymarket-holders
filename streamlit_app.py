@@ -1,5 +1,5 @@
 """
-Polymarket Whale Tracker - SIMPLE & CLEAN VERSION
+Polymarket Whale Tracker - SIMPLE & CLEAN VERSION (Visuals Improved)
 """
 
 import streamlit as st
@@ -10,22 +10,104 @@ import pandas as pd
 from typing import Optional, List, Dict
 
 # ===== PAGE SETUP =====
-st.set_page_config(page_title="Polymarket Whale Tracker", page_icon="🐋", layout="wide")
+# Use a dark theme for a sleek, modern look, and a wider layout.
+st.set_page_config(
+    page_title="Polymarket Whale Tracker 🐋", 
+    page_icon="💰", 
+    layout="wide", 
+    initial_sidebar_state="collapsed"
+)
 
-# ===== SIMPLE STYLING =====
+# ===== ENHANCED STYLING (Dark Theme & Typography) =====
 st.markdown("""
 <style>
-    .main { background: white; }
-    h1, h2, h3 { color: #000 !important; }
-    .stAlert { font-size: 1.1rem; }
+    /* Global Background and Typography */
+    .main { 
+        background-color: #0d1117; /* Dark GitHub-like background */
+        color: #c9d1d9; /* Light grey text */
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Headers */
+    h1, h2, h3 { 
+        color: #58a6ff !important; /* Polymarket Blue */
+        font-weight: 600;
+        letter-spacing: -0.5px;
+    }
+    h1 {
+        border-bottom: 2px solid #21262d; /* Subtle divider for the title */
+        padding-bottom: 10px;
+    }
+
+    /* Streamlit Components */
+    .stTextInput > label, .stSelectbox > label {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #c9d1d9;
+    }
+    .stButton > button {
+        background-color: #238636; /* Success green for main action */
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+        border: none;
+        padding: 10px 20px;
+        transition: all 0.2s;
+    }
+    .stButton > button:hover {
+        background-color: #2ea043;
+    }
+    
+    /* Info/Success/Error Blocks */
+    .stAlert { 
+        font-size: 1.1rem; 
+        border-radius: 8px;
+    }
+    .stAlert.info { 
+        background-color: #1a1f28; 
+        border-left: 5px solid #58a6ff;
+        color: #c9d1d9;
+    }
+    .stAlert.success {
+        background-color: #1a1f28; 
+        border-left: 5px solid #238636;
+        color: #c9d1d9;
+    }
+
+    /* Divider */
+    .st-dg { /* Target the Streamlit divider */
+        background-color: #21262d;
+    }
+    
+    /* Metrics Highlighting */
+    [data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        color: #58a6ff; /* Blue for the value */
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        color: #8b949e; /* Light grey for the label */
+    }
+
+    /* DataFrame Styling - to blend with dark theme */
+    .stDataFrame {
+        border: 1px solid #21262d;
+        border-radius: 8px;
+    }
+
+    /* P&L Color Coding */
+    .positive { color: #38b449; font-weight: bold; } /* Green for positive */
+    .negative { color: #f85149; font-weight: bold; } /* Red for negative */
+    .neutral { color: #c9d1d9; } /* Default */
+
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🐋 Polymarket Whale Tracker")
-st.write("**See who's winning and who's losing in any market**")
+st.title("💰 Polymarket Whale Tracker")
+st.write("### **See who's winning and who's losing in any market**")
 st.divider()
 
-# ===== CORE FUNCTIONS =====
+# ===== CORE FUNCTIONS (No Change needed here for visuals) =====
 
 def extract_slug(url: str) -> Optional[str]:
     match = re.search(r'polymarket\.com/event/([^?#/]+)', url)
@@ -110,38 +192,108 @@ def enrich_holder(holder: dict, condition_id: str) -> dict:
         'All-Time P&L': get_pnl(wallet)
     }
 
-# ===== MAIN APP =====
+# ===== CUSTOM FORMATTING FUNCTIONS for DataFrame Styling =====
 
-url = st.text_input("**📋 Paste Polymarket URL:**", placeholder="https://polymarket.com/event/...")
+def format_pnl_style(val):
+    """Applies CSS class for P&L based on value."""
+    if pd.isna(val):
+        return 'color: #8b949e' # Gray for N/A
+    if val > 0:
+        return 'color: #38b449; font-weight: bold' # Green
+    elif val < 0:
+        return 'color: #f85149; font-weight: bold' # Red
+    else:
+        return 'color: #c9d1d9' # White/Neutral
+
+def format_currency_with_pnl_style(s):
+    """Applies formatting and P&L color to a Pandas Series."""
+    formatted_series = s.apply(lambda x: f'${x:,}' if pd.notna(x) else 'N/A')
+    styled_series = [format_pnl_style(val) for val in s]
+    return [f'{style}; {formatted}' for style, formatted in zip(styled_series, formatted_series)]
+
+# --- Helper function for displaying results ---
+def display_results(df: pd.DataFrame, title: str, color_code: str):
+    """Reusable function to display a holder section."""
+    st.header(f"{color_code} {title}")
+    
+    # Apply custom styling to the DataFrame
+    st.dataframe(
+        df.style.format({
+            'Shares': '{:,}',
+            'Entry': '${:.3f}',
+            'Current': '${:.3f}',
+            'Value': '${:,}',
+            'Market P&L': lambda x: f'${x:,}',
+            'All-Time P&L': lambda x: f'${x:,.0f}' if pd.notna(x) else 'N/A'
+        })
+        .applymap(format_pnl_style, subset=['Market P&L', 'All-Time P&L'])
+        .set_properties(**{'background-color': '#161b22', 'color': '#c9d1d9'}), # Dark theme background/text for table cells
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # Metrics
+    st.markdown("### Key Metrics")
+    col1, col2, col3 = st.columns(3)
+    avg_pnl = df['All-Time P&L'].mean()
+    
+    col1.metric("**Average All-Time P&L**", 
+                f"${avg_pnl:,.0f}" if pd.notna(avg_pnl) else "N/A", 
+                delta_color="off") # Use off to prevent the delta icon from appearing
+    col2.metric("**Total Position Value**", f"${df['Value'].sum():,}")
+    
+    # Calculate Volume-Weighted Average Price (VWAP) for Entry
+    total_shares = df['Shares'].sum()
+    if total_shares > 0:
+        avg_entry = (df['Shares'] * df['Entry']).sum() / total_shares
+        col3.metric("**Volume-Weighted Avg Entry**", f"${avg_entry:.3f}")
+    else:
+        col3.metric("**Volume-Weighted Avg Entry**", "N/A")
+
+
+# ===== MAIN APP (Updated to use new styling and functions) =====
+
+url = st.text_input("**🔗 Paste Polymarket Market URL:**", placeholder="e.g., https://polymarket.com/event/will-tory-retain-power...")
 
 if url:
     slug = extract_slug(url)
     if not slug:
-        st.error("❌ Invalid URL")
+        st.error("❌ Invalid URL. Please ensure it starts with `https://polymarket.com/event/`")
         st.stop()
     
-    with st.spinner("Loading market..."):
-        market_data = fetch_market_data(slug)
-    
-    st.success(f"**Market:** {market_data.get('title')}")
+    try:
+        with st.spinner("🚀 Loading market details..."):
+            market_data = fetch_market_data(slug)
+    except Exception as e:
+        st.error(f"Failed to fetch market data: {e}")
+        st.stop()
+        
+    st.success(f"**Market Title:** {market_data.get('title')}")
     
     markets = [m for m in market_data.get('markets', []) if m.get('enableOrderBook')]
     if not markets:
-        st.error("No yes/no markets found")
+        st.error("No yes/no markets found in this event.")
         st.stop()
     
     if len(markets) > 1:
         options = [m.get('question', f'Market {i}') for i, m in enumerate(markets, 1)]
-        idx = st.selectbox("**Select market:**", range(len(options)), format_func=lambda x: options[x])
+        idx = st.selectbox("**Select specific market to analyze:**", range(len(options)), format_func=lambda x: options[x])
         selected = markets[idx]
     else:
         selected = markets[0]
+        st.info(f"**Market Question:** {selected.get('question')}")
     
-    st.info(f"**📊 {selected.get('question')}**")
+    st.markdown("---") # Use custom styled divider
     
-    if st.button("🔍 **ANALYZE**", type="primary", use_container_width=True):
+    if st.button("🔍 **ANALYZE WHALES**", type="primary", use_container_width=True):
         condition_id = selected.get('conditionId')
-        holders_data = fetch_holders(condition_id)
+        
+        with st.spinner("🎣 Fetching top holders for YES and NO outcomes..."):
+            try:
+                holders_data = fetch_holders(condition_id)
+            except Exception as e:
+                st.error(f"Failed to fetch holder data: {e}")
+                st.stop()
         
         yes_raw, no_raw = [], []
         for outcome in holders_data:
@@ -150,11 +302,15 @@ if url:
                 if holders[0].get('outcomeIndex') == 0:
                     yes_raw = holders[:15]
                 else:
-                    no_raw = holders[1:16]
+                    # outcomeIndex 1 typically refers to 'No' in yes/no markets, 
+                    # but if it's a binary market, only two outcomes exist. 
+                    # Check index 1 for the second outcome, which is usually 'No'.
+                    no_raw = holders[:15] # Take top 15 from the second outcome
         
         # YES HOLDERS
-        st.header("📈 YES Holders")
-        progress = st.progress(0)
+        st.markdown("##") # Add vertical space
+        st.markdown("---")
+        progress = st.progress(0, text="Enriching YES Holders' data...")
         yes_data = []
         for i, h in enumerate(yes_raw):
             enriched = enrich_holder(h, condition_id)
@@ -165,34 +321,15 @@ if url:
         progress.empty()
         
         if yes_data:
-            df = pd.DataFrame(yes_data)
-            
-            # Show table
-            st.dataframe(
-                df.style.format({
-                    'Shares': '{:,}',
-                    'Entry': '${:.3f}',
-                    'Current': '${:.3f}',
-                    'Value': '${:,}',
-                    'Market P&L': '${:,}',
-                    'All-Time P&L': lambda x: f'${x:,}' if pd.notna(x) else 'N/A'
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            # Metrics
-            col1, col2, col3 = st.columns(3)
-            avg_pnl = df['All-Time P&L'].mean()
-            col1.metric("**Avg All-Time P&L**", f"${avg_pnl:,.0f}" if pd.notna(avg_pnl) else "N/A")
-            col2.metric("**Total Value**", f"${df['Value'].sum():,}")
-            col3.metric("**Avg Entry**", f"${(df['Shares']*df['Entry']).sum()/df['Shares'].sum():.3f}")
-        
-        st.divider()
+            df_yes = pd.DataFrame(yes_data)
+            display_results(df_yes, "YES Holders (Top 15)", "🟢")
+        else:
+            st.warning("No significant YES holders found.")
         
         # NO HOLDERS
-        st.header("📉 NO Holders")
-        progress = st.progress(0)
+        st.markdown("##") # Add vertical space
+        st.markdown("---")
+        progress = st.progress(0, text="Enriching NO Holders' data...")
         no_data = []
         for i, h in enumerate(no_raw):
             enriched = enrich_holder(h, condition_id)
@@ -203,30 +340,14 @@ if url:
         progress.empty()
         
         if no_data:
-            df = pd.DataFrame(no_data)
-            
-            # Show table
-            st.dataframe(
-                df.style.format({
-                    'Shares': '{:,}',
-                    'Entry': '${:.3f}',
-                    'Current': '${:.3f}',
-                    'Value': '${:,}',
-                    'Market P&L': '${:,}',
-                    'All-Time P&L': lambda x: f'${x:,}' if pd.notna(x) else 'N/A'
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            # Metrics
-            col1, col2, col3 = st.columns(3)
-            avg_pnl = df['All-Time P&L'].mean()
-            col1.metric("**Avg All-Time P&L**", f"${avg_pnl:,.0f}" if pd.notna(avg_pnl) else "N/A")
-            col2.metric("**Total Value**", f"${df['Value'].sum():,}")
-            col3.metric("**Avg Entry**", f"${(df['Shares']*df['Entry']).sum()/df['Shares'].sum():.3f}")
-        
-        st.success("✅ Done!")
+            df_no = pd.DataFrame(no_data)
+            display_results(df_no, "NO Holders (Top 15)", "🔴")
+        else:
+            st.warning("No significant NO holders found.")
 
-st.divider()
-st.caption("🐋 Track the whales • [GitHub](https://github.com/geomanks/polymarket-holders)")
+        st.markdown("---")
+        st.balloons()
+        st.success("✅ Analysis Complete!")
+
+st.markdown("---")
+st.caption("A tool for tracking large positions on Polymarket. Data fetched via Polymarket APIs. [GitHub Repository](https://github.com/geomanks/polymarket-holders)")
