@@ -14,13 +14,73 @@ import pandas as pd
 # Page config
 st.set_page_config(
     page_title="Polymarket Whale Tracker",
-    page_icon="🔮",
-    layout="wide"
+    page_icon="🐋",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
-# Title
-st.title("🔮 Polymarket Whale Tracker")
-st.markdown("Analyze top 15 YES/NO holders for any market + their all-time P&L")
+# Custom CSS
+st.markdown("""
+<style>
+    .main-header {
+        text-align: center;
+        padding: 2rem 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+        margin-bottom: 2rem;
+    }
+    .main-header h1 {
+        color: white;
+        font-size: 3rem;
+        margin: 0;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    .main-header p {
+        color: rgba(255,255,255,0.9);
+        font-size: 1.2rem;
+        margin-top: 0.5rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border-left: 4px solid #667eea;
+        margin: 1rem 0;
+    }
+    .success-metric {
+        background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+        border-left: 4px solid #28a745;
+    }
+    .danger-metric {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        border-left: 4px solid #e74c3c;
+    }
+    .stDataFrame {
+        border: 2px solid #667eea;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .info-box {
+        background: #e3f2fd;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #2196f3;
+        margin: 1rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1>🐋 Polymarket Whale Tracker</h1>
+    <p>Analyze top holders and their all-time P&L across all markets</p>
+</div>
+""", unsafe_allow_html=True)
 
 # =============================================================================
 # CORE FUNCTIONS (from your script)
@@ -226,8 +286,19 @@ def enrich_holder_with_position(holder: Dict, condition_id: str) -> Dict:
 # STREAMLIT APP
 # =============================================================================
 
-# Input
-url = st.text_input("Enter Polymarket Market URL:", placeholder="https://polymarket.com/event/...")
+# Input section
+st.markdown("### 🔗 Enter Market URL")
+col1, col2 = st.columns([4, 1])
+with col1:
+    url = st.text_input(
+        "Polymarket URL", 
+        placeholder="https://polymarket.com/event/your-market-here",
+        label_visibility="collapsed"
+    )
+with col2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+st.markdown("---")
 
 if url:
     try:
@@ -241,7 +312,11 @@ if url:
             market_data = fetch_market_data(slug)
         
         market_title = market_data.get('title', 'Unknown')
-        st.success(f"**Event:** {market_title}")
+        st.markdown(f"""
+        <div class="info-box">
+            <h3 style="margin:0; color:#1976d2;">📊 {market_title}</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         markets = market_data.get('markets', [])
         
@@ -255,18 +330,27 @@ if url:
         # Handle multiple markets - show selection FIRST
         selected_index = 0
         if len(yes_no_markets) > 1:
-            st.warning(f"This event has {len(yes_no_markets)} markets. Select which one to analyze:")
+            st.markdown("#### 🎯 Multiple Markets Found")
+            st.info(f"This event has {len(yes_no_markets)} different markets. Select the one you want to analyze:")
             options = [m.get('question', f'Market {i}') for i, m in enumerate(yes_no_markets, 1)]
-            selected_index = st.selectbox("Select market:", range(len(options)), format_func=lambda x: options[x], key="market_selector")
+            selected_index = st.selectbox("Choose market:", range(len(options)), format_func=lambda x: options[x], key="market_selector")
         
         selected_market = yes_no_markets[selected_index]
         condition_id = selected_market.get('conditionId')
         question = selected_market.get('question', 'Unknown')
         
-        st.info(f"**Analyzing:** {question}")
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4 style="margin:0;">🎲 Selected Market</h4>
+            <p style="margin:0.5rem 0 0 0; font-size:1.1rem;"><strong>{question}</strong></p>
+        </div>
+        """, unsafe_allow_html=True)
         
         # NOW show the analyze button
-        if st.button("🔍 Analyze This Market", type="primary", key="analyze_btn"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        analyze_clicked = st.button("🔍 Analyze This Market", type="primary", use_container_width=True, key="analyze_btn")
+        
+        if analyze_clicked:
             
             # Fetch holders
             with st.spinner("Fetching holders..."):
@@ -287,65 +371,150 @@ if url:
                             no_holders_raw = holders[1:16]  # Skip first (bug)
             
             # Process YES holders
-            st.subheader("📈 Top 15 YES Holders")
-            yes_progress = st.progress(0)
+            st.markdown("---")
+            st.markdown("### 📈 Top 15 YES Holders")
+            yes_progress = st.progress(0, text="Fetching YES holders...")
             yes_holders = []
             
             for i, holder in enumerate(yes_holders_raw):
                 enriched = enrich_holder_with_position(holder, condition_id)
                 yes_holders.append(enriched)
-                yes_progress.progress((i + 1) / len(yes_holders_raw))
+                yes_progress.progress((i + 1) / len(yes_holders_raw), text=f"Processing {i+1}/{len(yes_holders_raw)} YES holders...")
                 time.sleep(0.15)
+            
+            yes_progress.empty()
             
             # Display YES holders table
             if yes_holders:
                 yes_df = pd.DataFrame(yes_holders)
-                yes_df['All-Time P&L'] = yes_df['total_pnl'].apply(
-                    lambda x: f"${x:,.2f}" if x is not None else "N/A"
+                
+                # Format columns
+                display_df = pd.DataFrame({
+                    'Trader': yes_df['name'],
+                    'Shares': yes_df['shares'].apply(lambda x: f"{x:,.0f}"),
+                    'Entry Price': yes_df['avg_price'].apply(lambda x: f"${x:.3f}"),
+                    'Current Price': yes_df['current_price'].apply(lambda x: f"${x:.3f}"),
+                    'Position Value': yes_df['current_value'].apply(lambda x: f"${x:,.0f}"),
+                    'Market P&L': yes_df['market_pnl'].apply(lambda x: f"${x:,.0f}"),
+                    'All-Time P&L': yes_df['total_pnl'].apply(
+                        lambda x: f"${x:,.0f}" if x is not None else "N/A"
+                    )
+                })
+                
+                st.dataframe(
+                    display_df, 
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400
                 )
-                yes_df['Market P&L'] = yes_df['market_pnl'].apply(lambda x: f"${x:,.2f}")
-                yes_df['Shares'] = yes_df['shares'].apply(lambda x: f"{x:,.2f}")
-                yes_df['Avg Entry'] = yes_df['avg_price'].apply(lambda x: f"${x:.4f}")
-                yes_df['Current Price'] = yes_df['current_price'].apply(lambda x: f"${x:.4f}")
                 
-                display_df = yes_df[['name', 'Shares', 'Avg Entry', 'Current Price', 'Market P&L', 'All-Time P&L']]
-                st.dataframe(display_df, use_container_width=True)
+                # Summary metrics in columns
+                col1, col2, col3 = st.columns(3)
                 
-                # Summary
                 avg_total_pnl = yes_df[yes_df['total_pnl'].notna()]['total_pnl'].mean()
-                st.metric("Average All-Time P&L (YES)", f"${avg_total_pnl:,.2f}" if pd.notna(avg_total_pnl) else "N/A")
-            
-            st.divider()
+                total_volume = yes_df['current_value'].sum()
+                avg_entry = (yes_df['shares'] * yes_df['avg_price']).sum() / yes_df['shares'].sum()
+                
+                with col1:
+                    pnl_class = "success-metric" if avg_total_pnl >= 0 else "danger-metric"
+                    st.markdown(f"""
+                    <div class="metric-card {pnl_class}">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Avg All-Time P&L</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">
+                            {"+" if avg_total_pnl >= 0 else ""}${avg_total_pnl:,.0f}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Total Position Value</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">${total_volume:,.0f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Weighted Avg Entry</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">${avg_entry:.3f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
             
             # Process NO holders
-            st.subheader("📉 Top 15 NO Holders")
-            no_progress = st.progress(0)
+            st.markdown("---")
+            st.markdown("### 📉 Top 15 NO Holders")
+            no_progress = st.progress(0, text="Fetching NO holders...")
             no_holders = []
             
             for i, holder in enumerate(no_holders_raw):
                 enriched = enrich_holder_with_position(holder, condition_id)
                 no_holders.append(enriched)
-                no_progress.progress((i + 1) / len(no_holders_raw))
+                no_progress.progress((i + 1) / len(no_holders_raw), text=f"Processing {i+1}/{len(no_holders_raw)} NO holders...")
                 time.sleep(0.15)
+            
+            no_progress.empty()
             
             # Display NO holders table
             if no_holders:
                 no_df = pd.DataFrame(no_holders)
-                no_df['All-Time P&L'] = no_df['total_pnl'].apply(
-                    lambda x: f"${x:,.2f}" if x is not None else "N/A"
+                
+                # Format columns
+                display_df = pd.DataFrame({
+                    'Trader': no_df['name'],
+                    'Shares': no_df['shares'].apply(lambda x: f"{x:,.0f}"),
+                    'Entry Price': no_df['avg_price'].apply(lambda x: f"${x:.3f}"),
+                    'Current Price': no_df['current_price'].apply(lambda x: f"${x:.3f}"),
+                    'Position Value': no_df['current_value'].apply(lambda x: f"${x:,.0f}"),
+                    'Market P&L': no_df['market_pnl'].apply(lambda x: f"${x:,.0f}"),
+                    'All-Time P&L': no_df['total_pnl'].apply(
+                        lambda x: f"${x:,.0f}" if x is not None else "N/A"
+                    )
+                })
+                
+                st.dataframe(
+                    display_df, 
+                    use_container_width=True,
+                    hide_index=True,
+                    height=400
                 )
-                no_df['Market P&L'] = no_df['market_pnl'].apply(lambda x: f"${x:,.2f}")
-                no_df['Shares'] = no_df['shares'].apply(lambda x: f"{x:,.2f}")
-                no_df['Avg Entry'] = no_df['avg_price'].apply(lambda x: f"${x:.4f}")
-                no_df['Current Price'] = no_df['current_price'].apply(lambda x: f"${x:.4f}")
                 
-                display_df = no_df[['name', 'Shares', 'Avg Entry', 'Current Price', 'Market P&L', 'All-Time P&L']]
-                st.dataframe(display_df, use_container_width=True)
+                # Summary metrics in columns
+                col1, col2, col3 = st.columns(3)
                 
-                # Summary
                 avg_total_pnl = no_df[no_df['total_pnl'].notna()]['total_pnl'].mean()
-                st.metric("Average All-Time P&L (NO)", f"${avg_total_pnl:,.2f}" if pd.notna(avg_total_pnl) else "N/A")
+                total_volume = no_df['current_value'].sum()
+                avg_entry = (no_df['shares'] * no_df['avg_price']).sum() / no_df['shares'].sum()
+                
+                with col1:
+                    pnl_class = "success-metric" if avg_total_pnl >= 0 else "danger-metric"
+                    st.markdown(f"""
+                    <div class="metric-card {pnl_class}">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Avg All-Time P&L</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">
+                            {"+" if avg_total_pnl >= 0 else ""}${avg_total_pnl:,.0f}
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Total Position Value</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">${total_volume:,.0f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <p style="margin:0; font-size:0.9rem; opacity:0.8;">Weighted Avg Entry</p>
+                        <p style="margin:0; font-size:2rem; font-weight:bold;">${avg_entry:.3f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
             
+            st.markdown("---")
             st.success("✅ Analysis complete!")
             
     except Exception as e:
@@ -355,9 +524,19 @@ if url:
 
 
 # Footer
-st.divider()
+st.markdown("---")
 st.markdown("""
-**About:** This tool analyzes the top holders in Polymarket yes/no markets and shows their all-time profit/loss across ALL markets.
-
-**Source:** [GitHub](https://github.com/geomanks/polymarket-holders)
-""")
+<div style="text-align: center; padding: 2rem 0; color: #666;">
+    <p style="font-size: 1rem; margin-bottom: 0.5rem;">
+        <strong>Polymarket Whale Tracker</strong> - Track smart money, fade the losers
+    </p>
+    <p style="font-size: 0.9rem; margin: 0;">
+        Analyzes top holders + all-time P&L across ALL markets
+    </p>
+    <p style="margin-top: 1rem;">
+        <a href="https://github.com/geomanks/polymarket-holders" target="_blank" style="text-decoration: none;">
+            ⭐ Star on GitHub
+        </a>
+    </p>
+</div>
+""", unsafe_allow_html=True)
