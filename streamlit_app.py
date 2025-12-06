@@ -277,7 +277,12 @@ if url:
     
     if len(markets) > 1:
         options = [m.get('question', f'Market {i}') for i, m in enumerate(markets, 1)]
-        idx = st.selectbox("**Select specific market to analyze:**", range(len(options)), format_func=lambda x: options[x])
+        idx = st.selectbox(
+            "**Select specific market to analyze:**", 
+            range(len(options)), 
+            format_func=lambda x: options[x],
+            key="market_select"
+        )
         selected = markets[idx]
     else:
         selected = markets[0]
@@ -310,15 +315,32 @@ if url:
         # YES HOLDERS
         st.markdown("##") # Add vertical space
         st.markdown("---")
-        progress = st.progress(0, text="Enriching YES Holders' data...")
+        st.subheader("🟢 Analyzing YES Holders...")
+        
         yes_data = []
+        total_yes = len(yes_raw)
+        
+        # Create container for progress
+        progress_container = st.empty()
+        status_container = st.empty()
+        
         for i, h in enumerate(yes_raw):
+            # Update status message
+            holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
+            status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_yes})")
+            
+            # Update progress bar with percentage
+            percentage = int(((i + 1) / total_yes) * 100)
+            progress_container.progress((i+1)/total_yes, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
+            
             enriched = enrich_holder(h, condition_id)
             if enriched:
                 yes_data.append(enriched)
-            progress.progress((i+1)/len(yes_raw))
             time.sleep(0.15)
-        progress.empty()
+        
+        # Clear progress indicators
+        progress_container.empty()
+        status_container.empty()
         
         if yes_data:
             df_yes = pd.DataFrame(yes_data)
@@ -338,15 +360,32 @@ if url:
         # NO HOLDERS
         st.markdown("##") # Add vertical space
         st.markdown("---")
-        progress = st.progress(0, text="Enriching NO Holders' data...")
+        st.subheader("🔴 Analyzing NO Holders...")
+        
         no_data = []
+        total_no = len(no_raw)
+        
+        # Create container for progress
+        progress_container = st.empty()
+        status_container = st.empty()
+        
         for i, h in enumerate(no_raw):
+            # Update status message
+            holder_name = h.get('name') or h.get('proxyWallet', 'Unknown')[:10]
+            status_container.info(f"📊 Analyzing: **{holder_name}** ({i+1}/{total_no})")
+            
+            # Update progress bar with percentage
+            percentage = int(((i + 1) / total_no) * 100)
+            progress_container.progress((i+1)/total_no, text=f"Progress: {percentage}% - Fetching position data & all-time P&L...")
+            
             enriched = enrich_holder(h, condition_id)
             if enriched:
                 no_data.append(enriched)
-            progress.progress((i+1)/len(no_raw))
             time.sleep(0.15)
-        progress.empty()
+        
+        # Clear progress indicators
+        progress_container.empty()
+        status_container.empty()
         
         if no_data:
             df_no = pd.DataFrame(no_data)
