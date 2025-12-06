@@ -311,10 +311,8 @@ if url:
                 if holders[0].get('outcomeIndex') == 0:
                     yes_raw = holders[:15]
                 else:
-                    # outcomeIndex 1 typically refers to 'No' in yes/no markets, 
-                    # but if it's a binary market, only two outcomes exist. 
-                    # Check index 1 for the second outcome, which is usually 'No'.
-                    no_raw = holders[:15] # Take top 15 from the second outcome
+                    # Skip first NO holder (index 0) due to API bug, take next 15
+                    no_raw = holders[1:16]  # Skip index 0, take indices 1-15
         
         # YES HOLDERS
         st.markdown("##") # Add vertical space
