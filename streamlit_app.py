@@ -8,11 +8,12 @@ import re
 import time
 import pandas as pd
 from typing import Optional, List, Dict
+import urllib.parse
 
 # ===== PAGE SETUP =====
 # Use a dark theme for a sleek, modern look, and a wider layout.
 st.set_page_config(
-    page_title="Polymarket Top Holders Tracker", 
+    page_title="Polymarket Whale Tracker 🐋", 
     page_icon="💰", 
     layout="wide", 
     initial_sidebar_state="collapsed"
@@ -103,7 +104,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("Polymarket Top Holders Tracker")
+st.title("💰 Polymarket Whale Tracker")
 st.write("### **See who's winning and who's losing in any market**")
 st.divider()
 
@@ -255,9 +256,25 @@ def display_results(df: pd.DataFrame, title: str, color_code: str):
         col3.metric("**Volume-Weighted Avg Entry**", "N/A")
 
 
+# ===== IMAGE GENERATION FOR TWITTER SHARING =====
+
 # ===== MAIN APP (Updated to use new styling and functions) =====
 
-url = st.text_input("**🔗 Paste Polymarket Market URL:**", placeholder="e.g., https://polymarket.com/event/will-tory-retain-power...")
+# Initialize session state for URL
+if 'current_url' not in st.session_state:
+    st.session_state['current_url'] = ""
+
+url = st.text_input("**🔗 Paste Polymarket Market URL:**", 
+                    value=st.session_state['current_url'],
+                    placeholder="e.g., https://polymarket.com/event/will-tory-retain-power...")
+
+# Update session state when URL changes
+if url != st.session_state['current_url']:
+    st.session_state['current_url'] = url
+    # Clear old analysis data when URL changes
+    for key in ['analysis_yes_data', 'analysis_no_data', 'analysis_slug', 'analysis_market_title', 'share_image', 'image_generated']:
+        if key in st.session_state:
+            del st.session_state[key]
 
 if url:
     slug = extract_slug(url)
@@ -408,6 +425,12 @@ if url:
         st.balloons()
         st.success("✅ Analysis Complete!")
         
+        # Store data in session state for Twitter share functionality
+        st.session_state['analysis_yes_data'] = yes_data
+        st.session_state['analysis_no_data'] = no_data
+        st.session_state['analysis_slug'] = slug
+        st.session_state['analysis_market_title'] = market_data.get('title')
+        
         # ===== COMPARISON SECTION =====
         if yes_data and no_data:
             st.markdown("##")
@@ -468,6 +491,70 @@ if url:
                     st.info(f"💡 **Smart Money Indicator:** NO holders are more profitable on average (+${diff:,.0f} vs YES)")
                 else:
                     st.info("💡 **Smart Money Indicator:** Both sides have equally profitable traders")
+            
+            # ===== TWITTER SHARE SECTION =====
+            st.markdown("##")
+            st.markdown("---")
+            st.header("🐦 Share on Twitter")
+            
+            # Create a nicely formatted text table for Twitter
+            market_title_short = market_data.get('title')[:60] + "..." if len(market_data.get('title')) > 60 else market_data.get('title')
+            
+            # Determine smart money verdict
+            if pd.notna(yes_avg_pnl) and pd.notna(no_avg_pnl):
+                if yes_avg_pnl > no_avg_pnl:
+                    diff = yes_avg_pnl - no_avg_pnl
+                    verdict = f"YES holders +${diff:,.0f} more profitable"
+                    winner_emoji = "🟢"
+                elif no_avg_pnl > yes_avg_pnl:
+                    diff = no_avg_pnl - yes_avg_pnl
+                    verdict = f"NO holders +${diff:,.0f} more profitable"
+                    winner_emoji = "🔴"
+                else:
+                    verdict = "Both sides equally profitable"
+                    winner_emoji = "⚖️"
+            else:
+                verdict = "Insufficient data"
+                winner_emoji = "❓"
+            
+            # Format values before putting them in the tweet
+            yes_pnl_str = f"${yes_avg_pnl:,.0f}" if pd.notna(yes_avg_pnl) else "N/A"
+            no_pnl_str = f"${no_avg_pnl:,.0f}" if pd.notna(no_avg_pnl) else "N/A"
+            yes_winners_str = f"{profitable_yes}/{total_yes} ({(profitable_yes/total_yes*100):.0f}%)" if total_yes > 0 else "N/A"
+            no_winners_str = f"{profitable_no}/{total_no} ({(profitable_no/total_no*100):.0f}%)" if total_no > 0 else "N/A"
+            
+            # Shorten the URL
+            full_url = f"https://polymarket-holders-exp.streamlit.app/"
+            try:
+                response = requests.get(f"https://tinyurl.com/api-create.php?url={full_url}", timeout=3)
+                short_url = response.text if response.status_code == 200 else full_url
+            except:
+                short_url = full_url
+            
+            # Create the tweet text
+            tweet_text = f"""@polymarket 
+{market_title_short}
+{selected.get('question', '')}
+TOP 15 HOLDERS
+🟢YES Side:
+├ Avg P&L: {yes_pnl_str}
+├ Capital: ${yes_total_value:,}
+🔴NO Side:
+├ Avg P&L: {no_pnl_str}
+├ Capital: ${no_total_value:,}
+🔗 {short_url}
+"""
+            
+            # Display the tweet preview
+            st.markdown("### 📝 Your Tweet (Ready to Post!)")
+            st.code(tweet_text, language=None)
+            
+            # Create the Twitter URL with encoded text
+            twitter_url = f"https://twitter.com/intent/tweet?text={urllib.parse.quote(tweet_text)}"
+            
+            st.link_button("🐦 Post to Twitter", twitter_url, use_container_width=True, type="primary")
+            
+            st.success("✅ Click the button above - your tweet is ready! Twitter will open with this text pre-filled.")
 
 st.markdown("---")
 st.caption("A tool for tracking large positions on Polymarket. Data fetched via Polymarket APIs. [GitHub Repository](https://github.com/geomanks/polymarket-holders)")
